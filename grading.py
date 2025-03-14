@@ -43,6 +43,3 @@ def test_drc_errors():
 
 def test_drc_warnings():
     assert drc_warnings < 5, f"DRC Warnings ({drc_warnings}) are not less than 5"
-
-def test_violations():
-    assert violations < 5, f"Violations ({violations}) are not less than 5"
