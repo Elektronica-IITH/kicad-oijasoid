@@ -5,6 +5,86 @@
 	(uuid "58e8cd66-b4ea-4447-ac7f-f4cf73666dc1")
 	(paper "A4")
 	(lib_symbols)
+	(wire
+		(pts
+			(xy 193.6496 100.9396) (xy 193.6496 52.2478)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "23f516a9-3f25-4af9-99ea-dac47fbbc019")
+	)
+	(wire
+		(pts
+			(xy 136.8298 68.4784) (xy 136.8298 103.2256)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "280bea6b-adf5-408a-9422-fb91358cd188")
+	)
+	(wire
+		(pts
+			(xy 224.8662 136.4488) (xy 224.8662 142.5448)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "52ed272d-e6cf-4d8c-871b-58fdb4490051")
+	)
+	(wire
+		(pts
+			(xy 90.424 120.9802) (xy 165.2524 120.9802)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "69432942-8e13-4baf-aacc-5b3dc384d0f0")
+	)
+	(wire
+		(pts
+			(xy 193.6496 52.2478) (xy 237.7948 52.2478)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "72789273-fdad-42b7-ae48-80230eb77239")
+	)
+	(wire
+		(pts
+			(xy 165.2524 100.9396) (xy 165.2524 120.9802)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7c870318-5878-46d3-910f-4b77bda064f3")
+	)
+	(wire
+		(pts
+			(xy 69.6214 142.5448) (xy 224.8662 142.5448)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ac2a6af6-b8cf-436f-99f0-e7bee3b29188")
+	)
+	(wire
+		(pts
+			(xy 79.502 68.4784) (xy 136.8298 68.4784)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d26067c9-6a89-4ddb-b1d0-1b61d0395e0c")
+	)
 	(sheet
 		(at 25.4 25.4)
 		(size 12.7 3.81)
