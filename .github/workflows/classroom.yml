@@ -20,9 +20,19 @@ jobs:
         timeout: 10
         max-score: 100
         setup-command: pip install pytest
+    - name: Grades
+      id: grades
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Grades
+        setup-command: pip install pytest
+        command: pytest grading.py
+        timeout: 10
+        max-score: 100
     - name: Autograding Reporter
       uses: classroom-resources/autograding-grading-reporter@v1
       env:
         GRADING_RESULTS: "${{steps.grading.outputs.result}}"
+        GRADES_RESULTS: "${{steps.grades.outputs.result}}"
       with:
-        runners: grading
+        runners: grading,grades
