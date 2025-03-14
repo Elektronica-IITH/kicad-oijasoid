@@ -1,98 +1,83 @@
-name: PCB Autograding
+name: PCB Check and Score Calculation
 
 on:
   push:
-  workflow_dispatch:
-  repository_dispatch:
-
-permissions:
-  checks: write
-  actions: read
-  contents: read
+    branches:
+      - main  
 
 jobs:
-  run-pcb-checks:
+  check-pcb:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-classroom[bot]'
+    permissions:
+      contents: write
+      checks: write
+
     steps:
-    
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Install KiCad
+      - name: Install KiCad 8
         run: |
-          sudo add-apt-repository --yes ppa:kicad/kicad-7.0-releases
           sudo apt update
-          sudo apt install --yes kicad
+          sudo apt install -y software-properties-common
+          sudo add-apt-repository --yes ppa:kicad/kicad-8.0-releases
+          sudo apt update
+          sudo apt install -y --no-install-recommends kicad
 
-      - name: Find KiCad Schematic and PCB Files
-        id: find_files
+      - name: Find KiCad Files
+        id: find-files
         run: |
-          PCB_FILE=$(find . -name "*.kicad_pcb" | head -n 1)
           SCH_FILE=$(find . -name "*.kicad_sch" | head -n 1)
-          
-          if [[ -z "$PCB_FILE" || -z "$SCH_FILE" ]]; then
-            echo "ERROR: No KiCad files found!"
-            exit 1
-          fi
+          PCB_FILE=$(find . -name "*.kicad_pcb" | head -n 1)
+          echo "sch_file=$SCH_FILE" >> $GITHUB_ENV
+          echo "pcb_file=$PCB_FILE" >> $GITHUB_ENV
 
-          echo "PCB_FILE=$PCB_FILE" >> $GITHUB_ENV
-          echo "SCH_FILE=$SCH_FILE" >> $GITHUB_ENV
-
-      - name: Run ERC (Electrical Rule Check)
-        id: erc
+      - name: Run ERC Check
+        id: erc-check
         run: |
-          kicad-cli sch erc "$SCH_FILE" --output erc_result.txt || true
-          ERC_ERRORS=$(grep -o 'Error' erc_result.txt | wc -l)
-          ERC_WARNINGS=$(grep -o 'Warning' erc_result.txt | wc -l)
+          kicad-cli sch erc "$sch_file" > erc_output.txt 2>&1 || true
+          grep "Error" erc_output.txt > erc_errors.txt || true
+          grep "Warning" erc_output.txt > erc_warnings.txt || true
+          echo "erc_errors=$(wc -l < erc_errors.txt)" >> $GITHUB_ENV
+          echo "erc_warnings=$(wc -l < erc_warnings.txt)" >> $GITHUB_ENV
 
-          echo "ERC_ERRORS=$ERC_ERRORS" >> $GITHUB_ENV
-          echo "ERC_WARNINGS=$ERC_WARNINGS" >> $GITHUB_ENV
-
-      - name: Run DRC (Design Rule Check)
-        id: drc
+      - name: Run DRC Check
+        id: drc-check
         run: |
-          kicad-cli pcb drc "$PCB_FILE" --output drc_result.txt || true
-          DRC_ERRORS=$(grep -o 'Error' drc_result.txt | wc -l)
-          DRC_WARNINGS=$(grep -o 'Warning' drc_result.txt | wc -l)
+          kicad-cli pcb drc "$pcb_file" > drc_output.txt 2>&1 || true
+          VIOLATIONS=$(grep -o "Found [0-9]* violations" drc_output.txt | head -1 | awk '{print $2}' || echo 0)
+          grep "Error" drc_output.txt > drc_errors.txt || true
+          grep "Warning" drc_output.txt > drc_warnings.txt || true
+          echo "drc_errors=$(wc -l < drc_errors.txt)" >> $GITHUB_ENV
+          echo "drc_warnings=$(wc -l < drc_warnings.txt)" >> $GITHUB_ENV
+          echo "violations=$VIOLATIONS" >> $GITHUB_ENV
 
-          echo "DRC_ERRORS=$DRC_ERRORS" >> $GITHUB_ENV
-          echo "DRC_WARNINGS=$DRC_WARNINGS" >> $GITHUB_ENV
-
-      - name: Calculate Final Score
-        id: grading
+      - name: Calculate Score
+        id: score-calc
         run: |
           SCORE=100
-          MAX_WARNING_DEDUCTION=25
-          MAX_ERROR_DEDUCTION=50
-          
-          # Calculate warning deduction (0.1 per warning, max 25)
-          WARNING_COUNT=$((ERC_WARNINGS + DRC_WARNINGS))
-          WARNING_DEDUCTION=$(echo "$WARNING_COUNT * 0.1" | bc)
-          if (( $(echo "$WARNING_DEDUCTION > $MAX_WARNING_DEDUCTION" | bc -l) )); then
-            WARNING_DEDUCTION=$MAX_WARNING_DEDUCTION
-          fi
+          if [ "$erc_errors" -gt 0 ]; then SCORE=$((SCORE - 50)); fi
+          if [ "$drc_errors" -gt 0 ]; then SCORE=$((SCORE - 50)); fi
+          if [ "$violations" -lt 10 ]; then SCORE=$((SCORE + 10)); fi
+          if [ "$violations" -lt 100 ]; then SCORE=$((SCORE + 10)); fi
+          if [ "$SCORE" -gt 100 ]; then SCORE=100; fi
+          if [ "$SCORE" -lt 0 ]; then SCORE=0; fi
+          echo "FINAL_SCORE=$SCORE" >> $GITHUB_ENV
 
-          # Calculate error deduction (1 per error, max 50)
-          ERROR_COUNT=$((ERC_ERRORS + DRC_ERRORS))
-          ERROR_DEDUCTION=$ERROR_COUNT
-          if (( ERROR_DEDUCTION > MAX_ERROR_DEDUCTION )); then
-            ERROR_DEDUCTION=$MAX_ERROR_DEDUCTION
-          fi
+      - name: Output Results
+        run: |
+          echo "### PCB Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **ERC Errors:** $erc_errors" >> $GITHUB_STEP_SUMMARY
+          echo "- **ERC Warnings:** $erc_warnings" >> $GITHUB_STEP_SUMMARY
+          echo "- **DRC Errors:** $drc_errors" >> $GITHUB_STEP_SUMMARY
+          echo "- **DRC Warnings:** $drc_warnings" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Violations:** $violations" >> $GITHUB_STEP_SUMMARY
+          echo "- **Final Score:** $FINAL_SCORE/100" >> $GITHUB_STEP_SUMMARY
 
-          # Total deduction and final score
-          TOTAL_DEDUCTION=$(echo "$WARNING_DEDUCTION + $ERROR_DEDUCTION" | bc)
-          FINAL_SCORE=$(echo "$SCORE - $TOTAL_DEDUCTION" | bc)
-
-          # Ensure final score is not negative
-          if (( $(echo "$FINAL_SCORE < 0" | bc -l) )); then
-            FINAL_SCORE=0
-          fi
-
-          echo "FINAL_SCORE=$FINAL_SCORE" >> $GITHUB_ENV
-          echo "Final Score: $FINAL_SCORE"
-
-      - name: Autograding Reporter
-        uses: classroom-resources/autograding-grading-reporter@v1
-        with:
-          runners: grading
+      - name: Commit and Push Results
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add erc_output.txt erc_errors.txt erc_warnings.txt drc_output.txt drc_errors.txt drc_warnings.txt
+          git commit -m "Automated PCB Check Results: Score $FINAL_SCORE/100"
+          git push
