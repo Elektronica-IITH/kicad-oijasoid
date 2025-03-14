@@ -1,28 +1,98 @@
-name: Autograding Tests
-'on':
-- push
-- repository_dispatch
+name: PCB Autograding
+
+on:
+  push:
+  workflow_dispatch:
+  repository_dispatch:
+
 permissions:
   checks: write
   actions: read
   contents: read
+
 jobs:
-  run-autograding-tests:
+  run-pcb-checks:
     runs-on: ubuntu-latest
     if: github.actor != 'github-classroom[bot]'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    - name: Grading
-      id: grading
-      uses: classroom-resources/autograding-python-grader@v1
-      with:
-        timeout: 10
-        max-score: 100
-        setup-command: pip install pytest
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      env:
-        GRADING_RESULTS: "${{steps.grading.outputs.result}}"
-      with:
-        runners: grading
+    
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install KiCad
+        run: |
+          sudo add-apt-repository --yes ppa:kicad/kicad-7.0-releases
+          sudo apt update
+          sudo apt install --yes kicad
+
+      - name: Find KiCad Schematic and PCB Files
+        id: find_files
+        run: |
+          PCB_FILE=$(find . -name "*.kicad_pcb" | head -n 1)
+          SCH_FILE=$(find . -name "*.kicad_sch" | head -n 1)
+          
+          if [[ -z "$PCB_FILE" || -z "$SCH_FILE" ]]; then
+            echo "ERROR: No KiCad files found!"
+            exit 1
+          fi
+
+          echo "PCB_FILE=$PCB_FILE" >> $GITHUB_ENV
+          echo "SCH_FILE=$SCH_FILE" >> $GITHUB_ENV
+
+      - name: Run ERC (Electrical Rule Check)
+        id: erc
+        run: |
+          kicad-cli sch erc "$SCH_FILE" --output erc_result.txt || true
+          ERC_ERRORS=$(grep -o 'Error' erc_result.txt | wc -l)
+          ERC_WARNINGS=$(grep -o 'Warning' erc_result.txt | wc -l)
+
+          echo "ERC_ERRORS=$ERC_ERRORS" >> $GITHUB_ENV
+          echo "ERC_WARNINGS=$ERC_WARNINGS" >> $GITHUB_ENV
+
+      - name: Run DRC (Design Rule Check)
+        id: drc
+        run: |
+          kicad-cli pcb drc "$PCB_FILE" --output drc_result.txt || true
+          DRC_ERRORS=$(grep -o 'Error' drc_result.txt | wc -l)
+          DRC_WARNINGS=$(grep -o 'Warning' drc_result.txt | wc -l)
+
+          echo "DRC_ERRORS=$DRC_ERRORS" >> $GITHUB_ENV
+          echo "DRC_WARNINGS=$DRC_WARNINGS" >> $GITHUB_ENV
+
+      - name: Calculate Final Score
+        id: grading
+        run: |
+          SCORE=100
+          MAX_WARNING_DEDUCTION=25
+          MAX_ERROR_DEDUCTION=50
+          
+          # Calculate warning deduction (0.1 per warning, max 25)
+          WARNING_COUNT=$((ERC_WARNINGS + DRC_WARNINGS))
+          WARNING_DEDUCTION=$(echo "$WARNING_COUNT * 0.1" | bc)
+          if (( $(echo "$WARNING_DEDUCTION > $MAX_WARNING_DEDUCTION" | bc -l) )); then
+            WARNING_DEDUCTION=$MAX_WARNING_DEDUCTION
+          fi
+
+          # Calculate error deduction (1 per error, max 50)
+          ERROR_COUNT=$((ERC_ERRORS + DRC_ERRORS))
+          ERROR_DEDUCTION=$ERROR_COUNT
+          if (( ERROR_DEDUCTION > MAX_ERROR_DEDUCTION )); then
+            ERROR_DEDUCTION=$MAX_ERROR_DEDUCTION
+          fi
+
+          # Total deduction and final score
+          TOTAL_DEDUCTION=$(echo "$WARNING_DEDUCTION + $ERROR_DEDUCTION" | bc)
+          FINAL_SCORE=$(echo "$SCORE - $TOTAL_DEDUCTION" | bc)
+
+          # Ensure final score is not negative
+          if (( $(echo "$FINAL_SCORE < 0" | bc -l) )); then
+            FINAL_SCORE=0
+          fi
+
+          echo "FINAL_SCORE=$FINAL_SCORE" >> $GITHUB_ENV
+          echo "Final Score: $FINAL_SCORE"
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        with:
+          runners: grading
