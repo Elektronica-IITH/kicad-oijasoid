@@ -1,7 +1,7 @@
 name: Autograding Tests
 'on':
-- workflow_dispatch
-- repository_dispatch
+  - workflow_dispatch
+  - repository_dispatch
 permissions:
   checks: write
   actions: read
@@ -11,72 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'github-classroom[bot]'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    - name: grading
-      id: grading
-      uses: classroom-resources/autograding-command-grader@v1
-      with:
-        test-name: grading
-        setup-command: 'pip install pytest '
-        command: pytest grading.py
-        timeout: 10
-        max-score: 100
-    - name: Grade D
-      id: grade-d
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: Grade D
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 60 ]; then echo "1"; fi
-        input: ''
-        expected-output: '1'
-        comparison-method: exact
-        timeout: 10
-        max-score: 25
-    - name: Grade C
-      id: grade-c
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: Grade C
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 85 ]; then echo "1"; fi
-        input: ''
-        expected-output: '1'
-        comparison-method: exact
-        timeout: 10
-        max-score: 25
-    - name: Grade B
-      id: grade-b
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: Grade B
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 95 ]; then echo "1"; fi
-        input: ''
-        expected-output: '1'
-        comparison-method: exact
-        timeout: 10
-        max-score: 25
-    - name: Grade A
-      id: grade-a
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: Grade A
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -eq 100 ]; then echo "1"; fi
-        input: ''
-        expected-output: '1'
-        comparison-method: exact
-        timeout: 10
-        max-score: 25
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      env:
-        GRADING_RESULTS: "${{steps.grading.outputs.result}}"
-        GRADE-D_RESULTS: "${{steps.grade-d.outputs.result}}"
-        GRADE-C_RESULTS: "${{steps.grade-c.outputs.result}}"
-        GRADE-B_RESULTS: "${{steps.grade-b.outputs.result}}"
-        GRADE-A_RESULTS: "${{steps.grade-a.outputs.result}}"
-      with:
-        runners: grading,grade-d,grade-c,grade-b,grade-a
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run grading
+        id: grading
+        run: |
+          FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9')
+          echo "points=$FINAL_SCORE" >> "$GITHUB_OUTPUT"
+          echo "total-points=100" >> "$GITHUB_OUTPUT"
+      
+      - uses: markpatterson27/autograding@dev-points-input-release
+        with:
+          points: "${{ steps.grading.outputs.points }}"
+          available-points: "${{ steps.grading.outputs.total-points }}"
