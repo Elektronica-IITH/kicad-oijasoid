@@ -22,9 +22,61 @@ jobs:
         command: pytest grading.py
         timeout: 10
         max-score: 100
+    - name: Grade D
+      id: grade-d
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: Grade D
+        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
+        command: if [ "$FINAL_SCORE" -gt 60 ]; then echo "1"; fi
+        input: ''
+        expected-output: '1'
+        comparison-method: exact
+        timeout: 10
+        max-score: 25
+    - name: Grade C
+      id: grade-c
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: Grade C
+        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
+        command: if [ "$FINAL_SCORE" -gt 85 ]; then echo "1"; fi
+        input: ''
+        expected-output: '1'
+        comparison-method: exact
+        timeout: 10
+        max-score: 25
+    - name: Grade B
+      id: grade-b
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: Grade B
+        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
+        command: if [ "$FINAL_SCORE" -gt 95 ]; then echo "1"; fi
+        input: ''
+        expected-output: '1'
+        comparison-method: exact
+        timeout: 10
+        max-score: 25
+    - name: Grade A
+      id: grade-a
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: Grade A
+        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
+        command: if [ "$FINAL_SCORE" -eq 100 ]; then echo "1"; fi
+        input: ''
+        expected-output: '1'
+        comparison-method: exact
+        timeout: 10
+        max-score: 25
     - name: Autograding Reporter
       uses: classroom-resources/autograding-grading-reporter@v1
       env:
         GRADING_RESULTS: "${{steps.grading.outputs.result}}"
+        GRADE-D_RESULTS: "${{steps.grade-d.outputs.result}}"
+        GRADE-C_RESULTS: "${{steps.grade-c.outputs.result}}"
+        GRADE-B_RESULTS: "${{steps.grade-b.outputs.result}}"
+        GRADE-A_RESULTS: "${{steps.grade-a.outputs.result}}"
       with:
-        runners: grading
+        runners: grading,grade-d,grade-c,grade-b,grade-a
