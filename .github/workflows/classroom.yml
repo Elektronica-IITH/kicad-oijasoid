@@ -25,3 +25,4 @@ jobs:
         with:
           points: "${{ steps.grading.outputs.points }}"
           available-points: "${{ steps.grading.outputs.total-points }}"
+
