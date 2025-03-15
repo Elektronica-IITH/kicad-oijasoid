@@ -1,21 +1,17 @@
 name: PCB Check and Score Calculation
-
 on:
   push:
     branches:
       - main  
-
 jobs:
   check-pcb:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       checks: write
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-
       - name: Install KiCad 8
         run: |
           sudo apt update
@@ -23,7 +19,6 @@ jobs:
           sudo add-apt-repository --yes ppa:kicad/kicad-8.0-releases
           sudo apt update
           sudo apt install -y --no-install-recommends kicad
-
       - name: Find KiCad Files
         id: find-files
         run: |
@@ -31,7 +26,6 @@ jobs:
           PCB_FILE=$(find . -name "*.kicad_pcb" | head -n 1)
           echo "sch_file=$SCH_FILE" >> $GITHUB_ENV
           echo "pcb_file=$PCB_FILE" >> $GITHUB_ENV
-
       - name: Run ERC Check
         id: erc-check
         run: |
@@ -40,30 +34,45 @@ jobs:
           grep "Warning" erc_output.txt > erc_warnings.txt || true
           echo "erc_errors=$(wc -l < erc_errors.txt)" >> $GITHUB_ENV
           echo "erc_warnings=$(wc -l < erc_warnings.txt)" >> $GITHUB_ENV
-
       - name: Run DRC Check
         id: drc-check
         run: |
           kicad-cli pcb drc "$pcb_file" > drc_output.txt 2>&1 || true
-          VIOLATIONS=$(grep -o "Found [0-9]* violations" drc_output.txt | head -1 | awk '{print $2}' || echo 0)
           grep "Error" drc_output.txt > drc_errors.txt || true
           grep "Warning" drc_output.txt > drc_warnings.txt || true
           echo "drc_errors=$(wc -l < drc_errors.txt)" >> $GITHUB_ENV
           echo "drc_warnings=$(wc -l < drc_warnings.txt)" >> $GITHUB_ENV
-          echo "violations=$VIOLATIONS" >> $GITHUB_ENV
-
       - name: Calculate Score
         id: score-calc
         run: |
           SCORE=100
-          if [ "$erc_errors" -gt 0 ]; then SCORE=$((SCORE - 50)); fi
-          if [ "$drc_errors" -gt 0 ]; then SCORE=$((SCORE - 50)); fi
-          if [ "$violations" -lt 10 ]; then SCORE=$((SCORE + 10)); fi
-          if [ "$violations" -lt 100 ]; then SCORE=$((SCORE + 10)); fi
-          if [ "$SCORE" -gt 100 ]; then SCORE=100; fi
-          if [ "$SCORE" -lt 0 ]; then SCORE=0; fi
-          echo "FINAL_SCORE=$SCORE" >> $GITHUB_ENV
-
+          
+          # Calculate total errors and warnings
+          TOTAL_ERRORS=$((erc_errors + drc_errors))
+          TOTAL_WARNINGS=$((erc_warnings + drc_warnings))
+          
+          # Calculate deductions
+          ERROR_DEDUCTION=$TOTAL_ERRORS
+          if [ "$ERROR_DEDUCTION" -gt 50 ]; then ERROR_DEDUCTION=50; fi
+          
+          # Calculate warning deduction - need to use bc for floating point arithmetic
+          WARNING_DEDUCTION=$(echo "$TOTAL_WARNINGS * 0.1" | bc)
+          MAX_WARNING_DEDUCTION=50
+          WARNING_DEDUCTION=$(echo "if ($WARNING_DEDUCTION > $MAX_WARNING_DEDUCTION) $MAX_WARNING_DEDUCTION else $WARNING_DEDUCTION" | bc)
+          
+          # Apply deductions
+          SCORE=$(echo "$SCORE - $ERROR_DEDUCTION - $WARNING_DEDUCTION" | bc)
+          
+          # Ensure score stays within bounds
+          SCORE=$(echo "if ($SCORE > 100) 100 else $SCORE" | bc)
+          SCORE=$(echo "if ($SCORE < 0) 0 else $SCORE" | bc)
+          
+          # Round to nearest integer
+          FINAL_SCORE=$(echo "scale=0; $SCORE / 1" | bc)
+          
+          echo "FINAL_SCORE=$FINAL_SCORE" >> $GITHUB_ENV
+          echo "ERROR_DEDUCTION=$ERROR_DEDUCTION" >> $GITHUB_ENV
+          echo "WARNING_DEDUCTION=$WARNING_DEDUCTION" >> $GITHUB_ENV
       - name: Output Results
         run: |
           echo "### PCB Check Results" >> $GITHUB_STEP_SUMMARY
@@ -71,13 +80,14 @@ jobs:
           echo "- **ERC Warnings:** $erc_warnings" >> $GITHUB_STEP_SUMMARY
           echo "- **DRC Errors:** $drc_errors" >> $GITHUB_STEP_SUMMARY
           echo "- **DRC Warnings:** $drc_warnings" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total Violations:** $violations" >> $GITHUB_STEP_SUMMARY
+          echo "- **Error Deduction:** $ERROR_DEDUCTION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Warning Deduction:** $WARNING_DEDUCTION" >> $GITHUB_STEP_SUMMARY
           echo "- **Final Score:** $FINAL_SCORE/100" >> $GITHUB_STEP_SUMMARY
-
-      - name: Commit and Push Results
+      - name: Commit and Push Score Only
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add erc_output.txt erc_errors.txt erc_warnings.txt drc_output.txt drc_errors.txt drc_warnings.txt
-          git commit -m "Automated PCB Check Results: Score $FINAL_SCORE/100"
+          echo "$FINAL_SCORE" > pcb_score.txt
+          git add pcb_score.txt
+          git commit -m "Automated PCB Check: Score $FINAL_SCORE/100"
           git push
