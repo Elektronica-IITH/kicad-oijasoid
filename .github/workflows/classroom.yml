@@ -14,15 +14,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Run grading
+      - name: Check if Score File Exists
+        run: |
+          if [ ! -f pcb_score.txt ]; then
+            echo "Error: pcb_score.txt not found!"
+            exit 1
+          fi
+      
+      - name: Extract Score
         id: grading
         run: |
           FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9')
-          echo "points=$FINAL_SCORE" >> "$GITHUB_OUTPUT"
-          echo "total-points=100" >> "$GITHUB_OUTPUT"
+          echo "Extracted Score: $FINAL_SCORE"
+          echo "points=$FINAL_SCORE" >> $GITHUB_ENV
+          echo "total-points=100" >> $GITHUB_ENV
       
       - uses: markpatterson27/autograding@dev-points-input-release
         with:
-          points: "${{ steps.grading.outputs.points }}"
-          available-points: "${{ steps.grading.outputs.total-points }}"
-
+          points: "${{ env.points }}"
+          available-points: "${{ env.total-points }}"
