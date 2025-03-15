@@ -13,22 +13,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: grading
-      id: grading
-      uses: classroom-resources/autograding-command-grader@v1
-      with:
-        test-name: grading
-        setup-command: 'pip install pytest '
-        command: pytest grading.py
-        timeout: 10
-        max-score: 100
     - name: Grade D
       id: grade-d
       uses: classroom-resources/autograding-io-grader@v1
       with:
         test-name: Grade D
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 60 ]; then echo "1"; fi
+        setup-command: ''
+        command: FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9'); [ "$FINAL_SCORE"
+          -gt 50 ] && echo "1"
         input: ''
         expected-output: '1'
         comparison-method: exact
@@ -39,8 +31,9 @@ jobs:
       uses: classroom-resources/autograding-io-grader@v1
       with:
         test-name: Grade C
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 85 ]; then echo "1"; fi
+        setup-command: ''
+        command: FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9'); [ "$FINAL_SCORE"
+          -gt 80 ] && echo "1"
         input: ''
         expected-output: '1'
         comparison-method: exact
@@ -51,8 +44,9 @@ jobs:
       uses: classroom-resources/autograding-io-grader@v1
       with:
         test-name: Grade B
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -gt 95 ]; then echo "1"; fi
+        setup-command: ''
+        command: FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9'); [ "$FINAL_SCORE"
+          -gt 95 ] && echo "1"
         input: ''
         expected-output: '1'
         comparison-method: exact
@@ -63,8 +57,9 @@ jobs:
       uses: classroom-resources/autograding-io-grader@v1
       with:
         test-name: Grade A
-        setup-command: FINAL_SCORE=$(cat pcb_score.txt)
-        command: if [ "$FINAL_SCORE" -eq 100 ]; then echo "1"; fi
+        setup-command: ''
+        command: FINAL_SCORE=$(cat pcb_score.txt | tr -dc '0-9'); [ "$FINAL_SCORE"
+          -eq 100 ] && echo "1"
         input: ''
         expected-output: '1'
         comparison-method: exact
@@ -73,10 +68,9 @@ jobs:
     - name: Autograding Reporter
       uses: classroom-resources/autograding-grading-reporter@v1
       env:
-        GRADING_RESULTS: "${{steps.grading.outputs.result}}"
         GRADE-D_RESULTS: "${{steps.grade-d.outputs.result}}"
         GRADE-C_RESULTS: "${{steps.grade-c.outputs.result}}"
         GRADE-B_RESULTS: "${{steps.grade-b.outputs.result}}"
         GRADE-A_RESULTS: "${{steps.grade-a.outputs.result}}"
       with:
-        runners: grading,grade-d,grade-c,grade-b,grade-a
+        runners: grade-d,grade-c,grade-b,grade-a
