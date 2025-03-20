@@ -32,7 +32,7 @@ jobs:
       - name: Generate BOM and Check ESP32
         id: check-esp32
         run: |
-          kicad-cli sch bom "$sch_file" -o bom.csv
+          kicad-cli sch export bom "$sch_file" --output bom.csv
           if grep -i "ESP32" bom.csv; then
             echo "esp32_used=true" >> $GITHUB_ENV
           else
