@@ -88,7 +88,7 @@ jobs:
 
           # If ESP32 is not used, cap score at 50
           if [ "$esp32_used" = "false" ]; then
-            FINAL_SCORE=50
+            FINAL_SCORE=25
           fi
 
           echo "FINAL_SCORE=$FINAL_SCORE" >> $GITHUB_ENV
