@@ -1,5 +1,0 @@
-Loading board
-Running DRC...
-Found 388 violations
-Found 0 unconnected items
-Saved DRC Report to board.rpt
