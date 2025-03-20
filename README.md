@@ -2,7 +2,7 @@
 # Elektronica Bootcamp '25 - README
 
 ## Overview
-Welcome to Elektronica, the premier Electronics and Signal Processing Club at IIT Hyderabad! This README provides details about our Bootcamp '25, how to participate, and what you can gain by joining us.
+Welcome to Elektronica, the premier Electronics and Signal Processing Club at IIT Hyderabad! This README provides details about our Bootcamp '25, how to participate, what you can gain by joining us.
 
 ## About Elektronica
 Elektronica is a vibrant community where technology enthusiasts collaborate on innovative projects, explore emerging tech trends, and engage in hands-on learning. From embedded systems and signal processing to wireless communication, we cover a broad spectrum of exciting domains.
@@ -17,14 +17,16 @@ By participating in the Elektronica Bootcamp, you get access to:
 - 🚀 **Innovative Learning:** Engage in interactive workshops and hackathons.
 
 ## Bootcamp Details
-- **Start Date:** To be announced
-- **Duration:** Multi-week structured sessions
-- **Who Can Join?** Any student passionate about electronics, signal processing, and innovative technology!
+- **Start Date:** Mar 22, 2025
+- **Duration:** 3 weeks (every Saturday, 5:30 - 7:30)
 
-## How to Participate
-1. Stay tuned for announcements on our official communication channels.
-2. Register for the Bootcamp when applications open.
-3. Engage actively in the sessions and hands-on projects.
+## Sessions
+1. PCB Design
+2. Biomedical signal processing
+3. Sensors
+
+## Final Project
+Build a smartwatch as a team. 
 
 ## Contact Us
 For queries or more information, feel free to reach out:
