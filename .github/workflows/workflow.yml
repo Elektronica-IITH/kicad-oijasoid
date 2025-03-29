@@ -21,6 +21,9 @@ jobs:
           sudo apt update
           sudo apt install -y --no-install-recommends kicad
       
+      - name: Create Output Directory
+        run: mkdir -p pcb_checks
+
       - name: Find KiCad Files
         id: find-files
         run: |
@@ -38,21 +41,21 @@ jobs:
         if: env.NO_SUBMISSION != 'true'
         id: erc-check
         run: |
-          kicad-cli sch erc "$sch_file" > erc_output.txt 2>&1 || true
-          grep "Error" erc_output.txt > erc_errors.txt || true
-          grep "Warning" erc_output.txt > erc_warnings.txt || true
-          echo "erc_errors=$(wc -l < erc_errors.txt)" >> $GITHUB_ENV
-          echo "erc_warnings=$(wc -l < erc_warnings.txt)" >> $GITHUB_ENV
+          kicad-cli sch erc "$sch_file" > pcb_checks/erc_output.txt 2>&1 || true
+          grep "Error" pcb_checks/erc_output.txt > pcb_checks/erc_errors.txt || true
+          grep "Warning" pcb_checks/erc_output.txt > pcb_checks/erc_warnings.txt || true
+          echo "erc_errors=$(wc -l < pcb_checks/erc_errors.txt)" >> $GITHUB_ENV
+          echo "erc_warnings=$(wc -l < pcb_checks/erc_warnings.txt)" >> $GITHUB_ENV
 
       - name: Run DRC Check
         if: env.NO_SUBMISSION != 'true'
         id: drc-check
         run: |
-          kicad-cli pcb drc "$pcb_file" > drc_output.txt 2>&1 || true
-          grep "Error" drc_output.txt > drc_errors.txt || true
-          grep "Warning" drc_output.txt > drc_warnings.txt || true
-          echo "drc_errors=$(wc -l < drc_errors.txt)" >> $GITHUB_ENV
-          echo "drc_warnings=$(wc -l < drc_warnings.txt)" >> $GITHUB_ENV
+          kicad-cli pcb drc "$pcb_file" > pcb_checks/drc_output.txt 2>&1 || true
+          grep "Error" pcb_checks/drc_output.txt > pcb_checks/drc_errors.txt || true
+          grep "Warning" pcb_checks/drc_output.txt > pcb_checks/drc_warnings.txt || true
+          echo "drc_errors=$(wc -l < pcb_checks/drc_errors.txt)" >> $GITHUB_ENV
+          echo "drc_warnings=$(wc -l < pcb_checks/drc_warnings.txt)" >> $GITHUB_ENV
 
       - name: Calculate Score
         id: score-calc
@@ -112,9 +115,33 @@ jobs:
 
       - name: Commit and Push Score
         run: |
+          # Clean up any previous score file
+          if [ -f "pcb_score.txt" ]; then
+            git rm -f pcb_score.txt >/dev/null 2>&1 || true
+          fi
+          
+          # Create new score file
+          echo "$FINAL_SCORE" > pcb_score.txt
+          
+          # Configure git
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          echo "$FINAL_SCORE" > pcb_score.txt
+          
+          # Add and commit only the score file
           git add pcb_score.txt
-          git commit -m "Automated PCB Check: Score $FINAL_SCORE/100"
-          git push
+          
+          # Check if there are changes to commit
+          if ! git diff-index --quiet HEAD --; then
+            git commit -m "Automated PCB Check: Score $FINAL_SCORE/100"
+            git push
+          else
+            echo "No changes to commit"
+          fi
+
+      - name: Clean Up Artifacts
+        if: always()
+        run: |
+          # Archive the check files for potential debugging
+          tar czf pcb_checks.tar.gz pcb_checks/ || true
+          # Remove the temporary files
+          rm -rf pcb_checks/ || true
