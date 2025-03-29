@@ -26,20 +26,16 @@ jobs:
         run: |
           SCH_FILE=$(find . -name "*.kicad_sch" | head -n 1)
           PCB_FILE=$(find . -name "*.kicad_pcb" | head -n 1)
+          if [ -z "$SCH_FILE" ] || [ -z "$PCB_FILE" ]; then
+            echo "FINAL_SCORE=0" >> $GITHUB_ENV
+            echo "NO_SUBMISSION=true" >> $GITHUB_ENV
+            exit 0
+          fi
           echo "sch_file=$SCH_FILE" >> $GITHUB_ENV
           echo "pcb_file=$PCB_FILE" >> $GITHUB_ENV
 
-      - name: Generate BOM and Check ESP32
-        id: check-esp32
-        run: |
-          kicad-cli sch export bom "$sch_file" --output bom.csv
-          if grep -i "ESP32" bom.csv; then
-            echo "esp32_used=true" >> $GITHUB_ENV
-          else
-            echo "esp32_used=false" >> $GITHUB_ENV
-          fi
-
       - name: Run ERC Check
+        if: env.NO_SUBMISSION != 'true'
         id: erc-check
         run: |
           kicad-cli sch erc "$sch_file" > erc_output.txt 2>&1 || true
@@ -49,6 +45,7 @@ jobs:
           echo "erc_warnings=$(wc -l < erc_warnings.txt)" >> $GITHUB_ENV
 
       - name: Run DRC Check
+        if: env.NO_SUBMISSION != 'true'
         id: drc-check
         run: |
           kicad-cli pcb drc "$pcb_file" > drc_output.txt 2>&1 || true
@@ -60,20 +57,27 @@ jobs:
       - name: Calculate Score
         id: score-calc
         run: |
+          if [ "$NO_SUBMISSION" = "true" ]; then
+            echo "FINAL_SCORE=0" >> $GITHUB_ENV
+            echo "ERROR_DEDUCTION=100" >> $GITHUB_ENV
+            echo "WARNING_DEDUCTION=0" >> $GITHUB_ENV
+            exit 0
+          fi
+          
           SCORE=100
           
           # Calculate total errors and warnings
           TOTAL_ERRORS=$((erc_errors + drc_errors))
           TOTAL_WARNINGS=$((erc_warnings + drc_warnings))
           
-          # Calculate deductions
-          ERROR_DEDUCTION=$TOTAL_ERRORS
-          if [ "$ERROR_DEDUCTION" -gt 50 ]; then ERROR_DEDUCTION=50; fi
+          # Calculate deductions - errors have higher weight
+          ERROR_DEDUCTION=$((TOTAL_ERRORS * 2))  # Each error deducts 2 points
+          if [ "$ERROR_DEDUCTION" -gt 80 ]; then ERROR_DEDUCTION=80; fi
           
-          # Calculate warning deduction
-          WARNING_DEDUCTION=$(echo "$TOTAL_WARNINGS * 0.1" | bc)
-          if (( $(echo "$WARNING_DEDUCTION > 50" | bc -l) )); then
-            WARNING_DEDUCTION=50
+          # Calculate warning deduction - lower weight
+          WARNING_DEDUCTION=$(echo "$TOTAL_WARNINGS * 0.2" | bc)  # Each warning deducts 0.2 points
+          if (( $(echo "$WARNING_DEDUCTION > 20" | bc -l) )); then
+            WARNING_DEDUCTION=20
           fi
           
           # Apply deductions
@@ -86,27 +90,25 @@ jobs:
           # Round to nearest integer
           FINAL_SCORE=$(echo "scale=0; $SCORE / 1" | bc)
 
-          # If ESP32 is not used, cap score at 50
-          if [ "$esp32_used" = "false" ]; then
-            FINAL_SCORE=25
-          fi
-
           echo "FINAL_SCORE=$FINAL_SCORE" >> $GITHUB_ENV
           echo "ERROR_DEDUCTION=$ERROR_DEDUCTION" >> $GITHUB_ENV
           echo "WARNING_DEDUCTION=$WARNING_DEDUCTION" >> $GITHUB_ENV
-          echo "ESP32_USED=$esp32_used" >> $GITHUB_ENV
 
       - name: Output Results
         run: |
           echo "### PCB Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "- **ESP32 Used:** $ESP32_USED" >> $GITHUB_STEP_SUMMARY
-          echo "- **ERC Errors:** $erc_errors" >> $GITHUB_STEP_SUMMARY
-          echo "- **ERC Warnings:** $erc_warnings" >> $GITHUB_STEP_SUMMARY
-          echo "- **DRC Errors:** $drc_errors" >> $GITHUB_STEP_SUMMARY
-          echo "- **DRC Warnings:** $drc_warnings" >> $GITHUB_STEP_SUMMARY
-          echo "- **Error Deduction:** $ERROR_DEDUCTION" >> $GITHUB_STEP_SUMMARY
-          echo "- **Warning Deduction:** $WARNING_DEDUCTION" >> $GITHUB_STEP_SUMMARY
-          echo "- **Final Score:** $FINAL_SCORE/100" >> $GITHUB_STEP_SUMMARY
+          if [ "$NO_SUBMISSION" = "true" ]; then
+            echo "- **No PCB files submitted**" >> $GITHUB_STEP_SUMMARY
+            echo "- **Final Score:** 0/100" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **ERC Errors:** $erc_errors" >> $GITHUB_STEP_SUMMARY
+            echo "- **ERC Warnings:** $erc_warnings" >> $GITHUB_STEP_SUMMARY
+            echo "- **DRC Errors:** $drc_errors" >> $GITHUB_STEP_SUMMARY
+            echo "- **DRC Warnings:** $drc_warnings" >> $GITHUB_STEP_SUMMARY
+            echo "- **Error Deduction:** $ERROR_DEDUCTION" >> $GITHUB_STEP_SUMMARY
+            echo "- **Warning Deduction:** $WARNING_DEDUCTION" >> $GITHUB_STEP_SUMMARY
+            echo "- **Final Score:** $FINAL_SCORE/100" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Commit and Push Score
         run: |
